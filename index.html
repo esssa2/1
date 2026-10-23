@@ -1,134 +1,498 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>شجرة العائلة</title>
 
 <style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:tahoma;
+}
 
 body{
-    background:#0d1117;
-    color:white;
-    font-family:tahoma;
-    text-align:center;
+background:#0d1117;
+color:#fff;
 }
 
-.tree ul{
-    padding-top:20px;
-    position:relative;
+header{
+background:#161b22;
+padding:20px;
+text-align:center;
+border-bottom:1px solid #30363d;
 }
 
-.tree li{
-    display:inline-block;
-    vertical-align:top;
-    text-align:center;
-    list-style:none;
-    position:relative;
-    padding:20px 5px 0 5px;
+.container{
+max-width:1400px;
+margin:auto;
+padding:20px;
 }
 
-.tree li::before,
-.tree li::after{
-    content:'';
-    position:absolute;
-    top:0;
-    width:50%;
-    height:20px;
-    border-top:2px solid #666;
+.card{
+background:#161b22;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+border:1px solid #30363d;
 }
 
-.tree li::before{
-    right:50%;
+h2{
+margin-bottom:10px;
 }
 
-.tree li::after{
-    left:50%;
+input,select{
+width:100%;
+padding:12px;
+margin-top:8px;
+margin-bottom:10px;
+background:#21262d;
+color:white;
+border:none;
+border-radius:8px;
 }
 
-.tree li:only-child::before,
-.tree li:only-child::after{
-    display:none;
+button{
+padding:12px 20px;
+border:none;
+border-radius:8px;
+cursor:pointer;
+margin-top:5px;
 }
 
-.tree ul ul::before{
-    content:'';
-    position:absolute;
-    top:0;
-    left:50%;
-    height:20px;
-    border-left:2px solid #666;
+.add{
+background:#238636;
+color:white;
 }
 
-.person{
-    background:#161b22;
-    border:1px solid #30363d;
-    border-radius:10px;
-    padding:15px;
-    min-width:120px;
-    display:inline-block;
+.delete{
+background:#da3633;
+color:white;
 }
 
+.tree{
+overflow:auto;
+white-space:nowrap;
+padding:20px;
+}
+
+.node{
+display:inline-block;
+background:#21262d;
+border:1px solid #3d444d;
+padding:12px;
+border-radius:10px;
+min-width:160px;
+text-align:center;
+cursor:pointer;
+margin:10px;
+}
+
+.node:hover{
+border-color:#58a6ff;
+}
+
+.children{
+margin-right:40px;
+border-right:2px solid #444;
+padding-right:20px;
+margin-top:10px;
+}
+
+.modal{
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:rgba(0,0,0,.8);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+.modal-content{
+background:#161b22;
+padding:20px;
+border-radius:10px;
+width:350px;
+}
+
+.stats{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+}
+
+.stat{
+flex:1;
+min-width:200px;
+background:#21262d;
+padding:15px;
+border-radius:10px;
+text-align:center;
+}
+
+.small{
+color:#8b949e;
+font-size:13px;
+}
 </style>
-
 </head>
 
 <body>
 
+<header>
 <h1>🌳 شجرة العائلة</h1>
+</header>
 
-<div class="tree">
+<div class="container">
 
-<ul>
+<div class="card">
 
-<li>
+<h2>إضافة شخص</h2>
 
-<div class="person">
-علي
-</div>
+<input id="name" placeholder="اسم الشخص">
 
-<ul>
+<select id="father">
+<option value="">بدون أب (مؤسس العائلة)</option>
+</select>
 
-<li>
-
-<div class="person">
-عيسى
-</div>
-
-<ul>
-
-<li>
-<div class="person">
-محمد
-</div>
-</li>
-
-<li>
-<div class="person">
-عبدالله
-</div>
-</li>
-
-</ul>
-
-</li>
-
-<li>
-
-<div class="person">
-أحمد
-</div>
-
-</li>
-
-</ul>
-
-</li>
-
-</ul>
+<button class="add" onclick="addPerson()">
+إضافة شخص
+</button>
 
 </div>
+
+<div class="card">
+
+<h2>البحث</h2>
+
+<input
+id="search"
+placeholder="ابحث عن شخص"
+onkeyup="render()">
+
+</div>
+
+<div class="card">
+<div class="stats">
+
+<div class="stat">
+عدد الأفراد
+<h2 id="count">0</h2>
+</div>
+
+<div class="stat">
+عدد المؤسسين
+<h2 id="roots">0</h2>
+</div>
+
+</div>
+</div>
+
+<div class="card">
+
+<h2>الشجرة</h2>
+
+<div id="tree" class="tree"></div>
+
+</div>
+
+</div>
+
+<div class="modal" id="modal">
+<div class="modal-content">
+
+<h2 id="personName"></h2>
+
+<p id="personFather"></p>
+
+<br>
+
+<button
+class="delete"
+onclick="deleteSelected()">
+حذف الشخص
+</button>
+
+</div>
+</div>
+
+<script>
+
+let selectedId=null;
+
+let people =
+JSON.parse(
+localStorage.getItem("familyTree")
+) || [
+
+{
+id:1,
+name:"الجد",
+father:null
+},
+
+{
+id:2,
+name:"الابن الأول",
+father:1
+},
+
+{
+id:3,
+name:"الابن الثاني",
+father:1
+}
+
+];
+
+function save(){
+
+localStorage.setItem(
+"familyTree",
+JSON.stringify(people)
+);
+
+}
+
+function addPerson(){
+
+const name=
+document.getElementById("name").value.trim();
+
+if(!name){
+alert("أدخل الاسم");
+return;
+}
+
+const father=
+document.getElementById("father").value;
+
+people.push({
+
+id:Date.now(),
+
+name:name,
+
+father: father || null
+
+});
+
+document.getElementById("name").value="";
+
+save();
+
+render();
+
+}
+
+function buildTree(parentId){
+
+const children=
+people.filter(
+p=>String(p.father)===String(parentId)
+);
+
+if(children.length===0)
+return "";
+
+let html=
+'<div class="children">';
+
+children.forEach(child=>{
+
+html+=`
+
+<div>
+
+<div
+class="node"
+onclick="showPerson(${child.id})">
+
+${child.name}
+
+</div>
+
+${buildTree(child.id)}
+
+</div>
+
+`;
+
+});
+
+html+='</div>';
+
+return html;
+
+}
+
+function showPerson(id){
+
+selectedId=id;
+
+const person=
+people.find(
+x=>x.id===id
+);
+
+document.getElementById(
+"personName"
+).innerText=person.name;
+
+let fatherName=
+"غير معروف";
+
+if(person.father){
+
+let f=
+people.find(
+x=>x.id==person.father
+);
+
+if(f)
+fatherName=f.name;
+
+}
+
+document.getElementById(
+"personFather"
+).innerText=
+"الأب: "+fatherName;
+
+document.getElementById(
+"modal"
+).style.display="flex";
+
+}
+
+document.getElementById(
+"modal"
+).onclick=function(e){
+
+if(e.target.id==="modal")
+this.style.display="none";
+
+};
+
+function deleteSelected(){
+
+if(!selectedId) return;
+
+people=
+people.filter(
+x=>x.id!==selectedId
+);
+
+save();
+
+document.getElementById(
+"modal"
+).style.display="none";
+
+render();
+
+}
+
+function render(){
+
+const search=
+document.getElementById(
+"search"
+).value.toLowerCase();
+
+document.getElementById(
+"count"
+).innerText=
+people.length;
+
+document.getElementById(
+"roots"
+).innerText=
+people.filter(
+x=>!x.father
+).length;
+
+let fatherSelect=
+document.getElementById(
+"father"
+);
+
+fatherSelect.innerHTML=
+'<option value="">بدون أب (مؤسس العائلة)</option>';
+
+people.forEach(p=>{
+
+fatherSelect.innerHTML+=`
+
+<option value="${p.id}">
+${p.name}
+</option>
+
+`;
+
+});
+
+let roots=
+people.filter(
+x=>!x.father
+);
+
+let html="";
+
+roots.forEach(root=>{
+
+if(
+search &&
+!root.name.toLowerCase()
+.includes(search)
+){
+
+let match=
+people.some(
+p=>
+p.name.toLowerCase()
+.includes(search)
+);
+
+if(!match) return;
+}
+
+html+=`
+
+<div>
+
+<div
+class="node"
+onclick="showPerson(${root.id})">
+
+${root.name}
+
+</div>
+
+${buildTree(root.id)}
+
+</div>
+
+`;
+
+});
+
+document.getElementById(
+"tree"
+).innerHTML=html;
+
+save();
+
+}
+
+render();
+
+</script>
 
 </body>
-
 </html>
