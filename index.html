@@ -139,4 +139,273 @@ content:'';
 position:absolute;
 top:0;
 right:50%;
-border-right:
+border-right:2px solid #555;
+height:20px;
+}
+
+.stats{
+display:flex;
+gap:15px;
+flex-wrap:wrap;
+}
+
+.stat{
+background:#21262d;
+padding:15px;
+border-radius:10px;
+flex:1;
+min-width:200px;
+text-align:center;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>🌳 شجرة العائلة</h1>
+</header>
+
+<div class="container">
+
+<div class="card">
+
+<h2>إضافة شخص</h2>
+
+<input id="name" placeholder="اسم الشخص">
+
+<select id="father">
+<option value="">
+بدون أب (الجد الأعلى)
+</option>
+</select>
+
+<button onclick="addPerson()">
+إضافة
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>البحث</h2>
+
+<input
+id="search"
+placeholder="ابحث عن شخص"
+onkeyup="render()">
+
+</div>
+
+<div class="card">
+
+<div class="stats">
+
+<div class="stat">
+عدد الأفراد
+<h2 id="count">0</h2>
+</div>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>الشجرة</h2>
+
+<div id="tree"></div>
+
+</div>
+
+</div>
+
+<script>
+
+let people =
+JSON.parse(localStorage.getItem("familyTree")) || [
+
+{
+id:1,
+name:"علي",
+father:null
+},
+
+{
+id:2,
+name:"عيسى",
+father:1
+},
+
+{
+id:3,
+name:"محمد",
+father:2
+},
+
+{
+id:4,
+name:"عبدالله",
+father:2
+}
+
+];
+
+function save(){
+
+localStorage.setItem(
+"familyTree",
+JSON.stringify(people)
+);
+
+}
+
+function addPerson(){
+
+let name =
+document.getElementById("name").value.trim();
+
+let father =
+document.getElementById("father").value;
+
+if(!name){
+alert("أدخل اسم الشخص");
+return;
+}
+
+people.push({
+
+id:Date.now(),
+
+name:name,
+
+father: father || null
+
+});
+
+document.getElementById("name").value="";
+
+save();
+
+render();
+
+}
+
+function buildTree(parentId){
+
+let children =
+people.filter(
+x => String(x.father) === String(parentId)
+);
+
+if(children.length===0)
+return "";
+
+let html = "<ul>";
+
+children.forEach(child=>{
+
+html += `
+<li>
+
+<div class="person">
+${child.name}
+</div>
+
+${buildTree(child.id)}
+
+</li>
+`;
+
+});
+
+html += "</ul>";
+
+return html;
+
+}
+
+function render(){
+
+document.getElementById("count")
+.innerText = people.length;
+
+let fatherSelect =
+document.getElementById("father");
+
+fatherSelect.innerHTML =
+'<option value="">بدون أب (الجد الأعلى)</option>';
+
+people.forEach(person=>{
+
+fatherSelect.innerHTML +=
+
+`
+<option value="${person.id}">
+${person.name}
+</option>
+`;
+
+});
+
+let search =
+document.getElementById("search")
+.value
+.toLowerCase();
+
+let roots =
+people.filter(
+p=>!p.father
+);
+
+let html =
+'<div class="tree"><ul>';
+
+roots.forEach(root=>{
+
+if(
+search &&
+!root.name.toLowerCase().includes(search)
+){
+
+let found =
+people.some(
+p=>
+p.name.toLowerCase()
+.includes(search)
+);
+
+if(!found) return;
+}
+
+html += `
+
+<li>
+
+<div class="person">
+${root.name}
+</div>
+
+${buildTree(root.id)}
+
+</li>
+`;
+
+});
+
+html += "</ul></div>";
+
+document.getElementById("tree")
+.innerHTML = html;
+
+save();
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>
