@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,296 +9,134 @@
 
 <style>
 
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
 body{
-    background:#0d1117;
-    color:white;
-    font-family:tahoma;
-    margin:0;
+font-family:tahoma;
+background:#0d1117;
+color:white;
 }
 
 header{
-    background:#161b22;
-    text-align:center;
-    padding:20px;
+background:#161b22;
+padding:20px;
+text-align:center;
+border-bottom:1px solid #30363d;
 }
 
 .container{
-    max-width:1200px;
-    margin:auto;
-    padding:20px;
+max-width:1400px;
+margin:auto;
+padding:20px;
 }
 
 .card{
-    background:#161b22;
-    padding:20px;
-    border-radius:10px;
-    margin-bottom:20px;
+background:#161b22;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+border:1px solid #30363d;
 }
 
 input,select{
-    width:100%;
-    padding:10px;
-    margin:8px 0;
-    background:#21262d;
-    color:white;
-    border:none;
-    border-radius:8px;
+width:100%;
+padding:12px;
+background:#21262d;
+border:none;
+border-radius:8px;
+color:white;
+margin-top:10px;
+margin-bottom:10px;
 }
 
 button{
-    background:#238636;
-    color:white;
-    border:none;
-    padding:12px 20px;
-    border-radius:8px;
-    cursor:pointer;
+background:#238636;
+color:white;
+border:none;
+padding:12px 20px;
+border-radius:8px;
+cursor:pointer;
+}
+
+button:hover{
+background:#2ea043;
+}
+
+.person{
+display:inline-block;
+padding:12px 18px;
+background:#21262d;
+border:1px solid #3d444d;
+border-radius:10px;
+min-width:140px;
+margin:5px;
 }
 
 .tree{
-    display:flex;
-    justify-content:center;
-    margin-top:30px;
+overflow:auto;
+padding:20px;
 }
 
 .tree ul{
-    padding-top:20px;
-    position:relative;
-    padding-right:0;
+padding-top:20px;
+position:relative;
+padding-right:0;
+display:flex;
+justify-content:center;
 }
 
 .tree li{
-    list-style:none;
-    text-align:center;
-    position:relative;
-    padding:20px 5px 0 5px;
+list-style:none;
+text-align:center;
+position:relative;
+padding:20px 10px 0 10px;
 }
 
 .tree li::before,
 .tree li::after{
-    content:'';
-    position:absolute;
-    top:0;
-    right:50%;
-    border-top:2px solid #555;
-    width:50%;
-    height:20px;
+content:'';
+position:absolute;
+top:0;
+right:50%;
+border-top:2px solid #555;
+width:50%;
+height:20px;
 }
 
 .tree li::after{
-    right:auto;
-    left:50%;
-    border-right:2px solid #555;
+right:auto;
+left:50%;
+border-right:2px solid #555;
 }
 
-.tree li:only-child::after,
-.tree li:only-child::before{
-    display:none;
+.tree li:only-child::before,
+.tree li:only-child::after{
+display:none;
 }
 
 .tree li:only-child{
-    padding-top:0;
+padding-top:0;
 }
 
-.tree li:first-child::before,
+.tree li:first-child::before{
+border:none;
+}
+
 .tree li:last-child::after{
-    border:none;
+border:none;
 }
 
 .tree li:last-child::before{
-    border-left:2px solid #555;
+border-left:2px solid #555;
 }
 
 .tree ul ul::before{
-    content:'';
-    position:absolute;
-    top:0;
-    right:50%;
-    border-right:2px solid #555;
-    width:0;
-    height:20px;
-}
-
-.person{
-    display:inline-block;
-    padding:12px 20px;
-    background:#21262d;
-    border:1px solid #30363d;
-    border-radius:10px;
-    min-width:120px;
-}
-
-</style>
-</head>
-
-<body>
-
-<header>
-<h1>🌳 شجرة العائلة</h1>
-</header>
-
-<div class="container">
-
-<div class="card">
-
-<h2>إضافة شخص</h2>
-
-<input id="name" placeholder="اسم الشخص">
-
-<select id="parent">
-<option value="">بدون أب (الجد الأعلى)</option>
-</select>
-
-<button onclick="addPerson()">
-إضافة
-</button>
-
-</div>
-
-<div class="card">
-
-<h2>عرض الشجرة</h2>
-
-<div id="tree"></div>
-
-</div>
-
-</div>
-
-<script>
-
-let people =
-JSON.parse(localStorage.getItem("family")) || [
-
-{
-id:1,
-name:"علي",
-parent:null
-},
-
-{
-id:2,
-name:"عيسى",
-parent:1
-},
-
-{
-id:3,
-name:"محمد",
-parent:2
-},
-
-{
-id:4,
-name:"عبدالله",
-parent:2
-}
-
-];
-
-function save(){
-localStorage.setItem(
-"family",
-JSON.stringify(people)
-);
-}
-
-function addPerson(){
-
-let name =
-document.getElementById("name").value;
-
-let parent =
-document.getElementById("parent").value;
-
-if(!name) return;
-
-people.push({
-id:Date.now(),
-name:name,
-parent:parent || null
-});
-
-save();
-render();
-}
-
-function buildTree(parentId){
-
-let children =
-people.filter(
-p => String(p.parent) === String(parentId)
-);
-
-if(children.length===0) return "";
-
-let html = "<ul>";
-
-children.forEach(child=>{
-
-html += `
-<li>
-<div class="person">
-${child.name}
-</div>
-${buildTree(child.id)}
-</li>
-`;
-
-});
-
-html += "</ul>";
-
-return html;
-}
-
-function render(){
-
-let selector =
-document.getElementById("parent");
-
-selector.innerHTML =
-'<option value="">بدون أب (الجد الأعلى)</option>';
-
-people.forEach(p=>{
-
-selector.innerHTML += `
-<option value="${p.id}">
-${p.name}
-</option>`;
-});
-
-let roots =
-people.filter(
-p => !p.parent
-);
-
-let html =
-'<div class="tree"><ul>';
-
-roots.forEach(root=>{
-
-html += `
-<li>
-<div class="person">
-${root.name}
-</div>
-${buildTree(root.id)}
-</li>
-`;
-
-});
-
-html += "</ul></div>";
-
-document.getElementById("tree").innerHTML =
-html;
-
-save();
-}
-
-render();
-
-</script>
-
-</body>
-</html>
+content:'';
+position:absolute;
+top:0;
+right:50%;
+border-right:
