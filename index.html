@@ -1,385 +1,678 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
-import { FamilyTreeCanvas } from './components/FamilyTreeCanvas';
-import { MemberDrawer } from './components/MemberDrawer';
-import { AddEditMemberModal } from './components/AddEditMemberModal';
-import { DirectoryView } from './components/DirectoryView';
-import { MediaArchiveView } from './components/MediaArchiveView';
-import { TimelineView } from './components/TimelineView';
-import { StatisticsView } from './components/StatisticsView';
-import { DataManagementModal } from './components/DataManagementModal';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  FamilyMember, 
-  FamilyDocument, 
-  FamilyEvent, 
-  FamilyTreeSettings 
-} from './types/family';
-import { 
-  initialFamilySettings, 
-  initialFamilyMembers, 
-  initialFamilyDocuments, 
-  initialFamilyEvents 
-} from './data/initialFamilyData';
-import { 
-  ShieldCheck, 
-  Compass, 
+  X, 
+  Upload, 
+  Check, 
+  User, 
   Users, 
-  Layers, 
-  Download, 
-  Plus, 
-  Printer,
-  ChevronLeft
+  Lock, 
+  Unlock, 
+  Sparkles, 
+  CheckCircle2,
+  Calendar,
+  MapPin,
+  Briefcase
 } from 'lucide-react';
+import { FamilyMember, Gender } from '../types/family';
 
-const STORAGE_KEYS = {
-  MEMBERS: 'al_saibi_family_members_v1',
-  DOCUMENTS: 'al_saibi_family_documents_v1',
-  EVENTS: 'al_saibi_family_events_v1',
-  SETTINGS: 'al_saibi_family_settings_v1',
-};
-
-export default function App() {
-  // Load state from localStorage or initial defaults
-  const [members, setMembers] = useState<FamilyMember[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.MEMBERS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialFamilyMembers;
-  });
-
-  const [documents, setDocuments] = useState<FamilyDocument[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialFamilyDocuments;
-  });
-
-  const [events, setEvents] = useState<FamilyEvent[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.EVENTS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialFamilyEvents;
-  });
-
-  const [settings, setSettings] = useState<FamilyTreeSettings>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialFamilySettings;
-  });
-
-  // UI state
-  const [currentTab, setCurrentTab] = useState<'tree' | 'directory' | 'archive' | 'timeline' | 'statistics'>('tree');
-  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
-  const [isAddEditOpen, setIsAddEditOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
-  const [presetRelation, setPresetRelation] = useState<{
+interface AddEditMemberModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (memberData: FamilyMember) => void;
+  initialMember?: FamilyMember | null;
+  allMembers: FamilyMember[];
+  presetRelation?: {
     type: 'child' | 'spouse' | 'parent';
     targetMember: FamilyMember;
-  } | null>(null);
-  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
-  const [activeDocModal, setActiveDocModal] = useState<FamilyDocument | null>(null);
+  } | null;
+}
 
-  // Sync to localStorage
+export const AddEditMemberModal: React.FC<AddEditMemberModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialMember,
+  allMembers,
+  presetRelation,
+}) => {
+  const [firstName, setFirstName] = useState('');
+  const [fatherName, setFatherName] = useState('');
+  const [grandFatherName, setGrandFatherName] = useState('');
+  const [familyName, setFamilyName] = useState('الصائبي');
+  const [kunya, setKunya] = useState('');
+  const [gender, setGender] = useState<Gender>('male');
+  const [isDeceased, setIsDeceased] = useState(false);
+  const [birthYear, setBirthYear] = useState('');
+  const [birthPlace, setBirthPlace] = useState('');
+  const [deathYear, setDeathYear] = useState('');
+  const [deathPlace, setDeathPlace] = useState('');
+  const [profession, setProfession] = useState('');
+  const [generation, setGeneration] = useState(3);
+  const [branch, setBranch] = useState('فرع نجد');
+  const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [fatherId, setFatherId] = useState<string | ''>('');
+  const [motherId, setMotherId] = useState<string | ''>('');
+  const [selectedSpouseIds, setSelectedSpouseIds] = useState<string[]>([]);
+  const [city, setCity] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Auto-lock ancestor names when derived from tree
+  const [isAncestryLocked, setIsAncestryLocked] = useState<boolean>(true);
+
+  const firstNameInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper map for fast lookup
+  const memberMap = new Map<string, FamilyMember>();
+  allMembers.forEach((m) => memberMap.set(m.id, m));
+
+  // Populate data when modal opens
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [members]);
+    if (!isOpen) return;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [documents]);
+    if (initialMember) {
+      setFirstName(initialMember.firstName || '');
+      setFatherName(initialMember.fatherName || '');
+      setGrandFatherName(initialMember.grandFatherName || '');
+      setFamilyName(initialMember.familyName || 'الصائبي');
+      setKunya(initialMember.kunya || '');
+      setGender(initialMember.gender || 'male');
+      setIsDeceased(Boolean(initialMember.isDeceased));
+      setBirthYear(initialMember.birthYear || '');
+      setBirthPlace(initialMember.birthPlace || '');
+      setDeathYear(initialMember.deathYear || '');
+      setDeathPlace(initialMember.deathPlace || '');
+      setProfession(initialMember.profession || '');
+      setGeneration(initialMember.generation || 3);
+      setBranch(initialMember.branch || 'فرع نجد');
+      setBio(initialMember.bio || '');
+      setAvatarUrl(initialMember.avatarUrl || '');
+      setFatherId(initialMember.fatherId || '');
+      setMotherId(initialMember.motherId || '');
+      setSelectedSpouseIds(initialMember.spouseIds || []);
+      setCity(initialMember.city || '');
+      setPhone(initialMember.phone || '');
+      setIsAncestryLocked(false);
+    } else {
+      // New member defaults
+      setFirstName('');
+      setKunya('');
+      setGender('male');
+      setIsDeceased(false);
+      setBirthYear('');
+      setBirthPlace('');
+      setDeathYear('');
+      setDeathPlace('');
+      setProfession('');
+      setBio('');
+      setAvatarUrl('');
+      setCity('');
+      setPhone('');
+      setSelectedSpouseIds([]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [events]);
+      // Check if adding a child or other relative
+      if (presetRelation) {
+        const { type, targetMember } = presetRelation;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [settings]);
+        if (type === 'child') {
+          setIsAncestryLocked(true);
+          if (targetMember.gender === 'male') {
+            // Father is the target
+            setFatherId(targetMember.id);
+            setFatherName(targetMember.firstName);
+            setGrandFatherName(targetMember.fatherName || '');
+            setFamilyName(targetMember.familyName || 'الصائبي');
+            setBranch(targetMember.branch || 'فرع نجد');
+            setGeneration((targetMember.generation || 1) + 1);
+            if (targetMember.city) setCity(targetMember.city);
 
-  // Member CRUD Handlers
-  const handleSaveMember = (memberData: FamilyMember) => {
-    setMembers((prev) => {
-      const existingIdx = prev.findIndex((m) => m.id === memberData.id);
-      if (existingIdx >= 0) {
-        const copy = [...prev];
-        copy[existingIdx] = memberData;
-        return copy;
-      } else {
-        // Add new
-        const updated = [...prev, memberData];
-        // If spouse was selected, reciprocate link
-        if (memberData.spouseIds && memberData.spouseIds.length > 0) {
-          memberData.spouseIds.forEach((spId) => {
-            const spIdx = updated.findIndex((m) => m.id === spId);
-            if (spIdx >= 0 && !updated[spIdx].spouseIds.includes(memberData.id)) {
-              updated[spIdx] = {
-                ...updated[spIdx],
-                spouseIds: [...updated[spIdx].spouseIds, memberData.id],
-              };
+            if (targetMember.spouseIds.length > 0) {
+              setMotherId(targetMember.spouseIds[0]);
+            } else {
+              setMotherId('');
             }
-          });
-        }
-        return updated;
-      }
-    });
+          } else {
+            // Mother is the target
+            setMotherId(targetMember.id);
+            setGeneration((targetMember.generation || 1) + 1);
+            setBranch(targetMember.branch || 'فرع نجد');
 
-    if (selectedMember && selectedMember.id === memberData.id) {
-      setSelectedMember(memberData);
+            // If mother has a registered husband, inherit from him
+            if (targetMember.spouseIds.length > 0) {
+              const husb = allMembers.find((m) => m.id === targetMember.spouseIds[0]);
+              if (husb) {
+                setFatherId(husb.id);
+                setFatherName(husb.firstName);
+                setGrandFatherName(husb.fatherName || '');
+                setFamilyName(husb.familyName || targetMember.familyName || 'الصائبي');
+                if (husb.branch) setBranch(husb.branch);
+                if (husb.city) setCity(husb.city);
+              } else {
+                setFatherId('');
+                setFatherName('');
+                setGrandFatherName('');
+                setFamilyName(targetMember.familyName || 'الصائبي');
+              }
+            } else {
+              setFatherId('');
+              setFatherName('');
+              setGrandFatherName('');
+              setFamilyName(targetMember.familyName || 'الصائبي');
+            }
+          }
+        } else if (type === 'spouse') {
+          setIsAncestryLocked(false);
+          setGender(targetMember.gender === 'male' ? 'female' : 'male');
+          setSelectedSpouseIds([targetMember.id]);
+          setFatherId('');
+          setFatherName('');
+          setGrandFatherName('');
+          setFamilyName(targetMember.familyName || 'الصائبي');
+          setGeneration(targetMember.generation || 3);
+          setBranch(targetMember.branch || 'فرع نجد');
+          setMotherId('');
+        } else if (type === 'parent') {
+          setIsAncestryLocked(false);
+          setFatherId('');
+          setFatherName('');
+          setGrandFatherName('');
+          setFamilyName(targetMember.familyName || 'الصائبي');
+          setGeneration(Math.max(1, (targetMember.generation || 2) - 1));
+          setBranch(targetMember.branch || 'فرع نجد');
+          setMotherId('');
+        }
+      } else {
+        // Independent member
+        setFatherId('');
+        setFatherName('');
+        setGrandFatherName('');
+        setFamilyName('الصائبي');
+        setGeneration(3);
+        setBranch('فرع نجد');
+        setMotherId('');
+        setIsAncestryLocked(false);
+      }
+    }
+
+    // Auto-focus first name
+    setTimeout(() => {
+      firstNameInputRef.current?.focus();
+    }, 100);
+  }, [isOpen, initialMember, presetRelation, allMembers]);
+
+  // When father is selected from dropdown, automatically inherit lineage!
+  const handleFatherChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const fId = e.target.value;
+    setFatherId(fId);
+
+    if (fId) {
+      const f = allMembers.find((m) => m.id === fId);
+      if (f) {
+        setFatherName(f.firstName);
+        setGrandFatherName(f.fatherName || '');
+        setFamilyName(f.familyName || 'الصائبي');
+        if (f.branch) setBranch(f.branch);
+        setGeneration((f.generation || 1) + 1);
+        if (f.city && !city) setCity(f.city);
+        if (f.spouseIds && f.spouseIds.length > 0 && !motherId) {
+          setMotherId(f.spouseIds[0]);
+        }
+        setIsAncestryLocked(true);
+      }
+    } else {
+      setIsAncestryLocked(false);
     }
   };
 
-  const handleDeleteMember = (memberId: string) => {
-    setMembers((prev) => {
-      // Remove member and unlink from parents / spouses
-      return prev
-        .filter((m) => m.id !== memberId)
-        .map((m) => ({
-          ...m,
-          fatherId: m.fatherId === memberId ? null : m.fatherId,
-          motherId: m.motherId === memberId ? null : m.motherId,
-          spouseIds: m.spouseIds.filter((id) => id !== memberId),
-        }));
-    });
-    setSelectedMember(null);
+  // Image file upload handler (converts to base64 DataURL)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
-  const handleOpenAddRelative = (type: 'child' | 'spouse' | 'parent', targetMember: FamilyMember) => {
-    setEditingMember(null);
-    setPresetRelation({ type, targetMember });
-    setIsAddEditOpen(true);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim()) {
+      alert('يرجى كتابة الاسم الأول للابن/الابنة');
+      return;
+    }
+
+    const memberToSave: FamilyMember = {
+      id: initialMember ? initialMember.id : `m-${Date.now()}`,
+      firstName: firstName.trim(),
+      fatherName: fatherName.trim() || undefined,
+      grandFatherName: grandFatherName.trim() || undefined,
+      familyName: familyName.trim() || 'الصائبي',
+      kunya: kunya.trim() || undefined,
+      gender,
+      isDeceased,
+      birthYear: birthYear.trim() || undefined,
+      birthPlace: birthPlace.trim() || undefined,
+      deathYear: isDeceased ? (deathYear.trim() || undefined) : undefined,
+      deathPlace: isDeceased ? (deathPlace.trim() || undefined) : undefined,
+      profession: profession.trim() || undefined,
+      generation: Number(generation) || 3,
+      branch: branch.trim() || undefined,
+      bio: bio.trim() || undefined,
+      avatarUrl: avatarUrl.trim() || undefined,
+      fatherId: fatherId || null,
+      motherId: motherId || null,
+      spouseIds: selectedSpouseIds,
+      city: city.trim() || undefined,
+      phone: phone.trim() || undefined,
+    };
+
+    onSave(memberToSave);
+    onClose();
   };
 
-  const handleEditMemberFromDrawer = (member: FamilyMember) => {
-    setEditingMember(member);
-    setPresetRelation(null);
-    setIsAddEditOpen(true);
-  };
+  if (!isOpen) return null;
 
-  const handleAddDocument = (newDoc: FamilyDocument) => {
-    setDocuments((prev) => [newDoc, ...prev]);
-  };
+  const maleMembers = allMembers.filter((m) => m.gender === 'male' && m.id !== initialMember?.id);
+  const femaleMembers = allMembers.filter((m) => m.gender === 'female' && m.id !== initialMember?.id);
+  const potentialSpouses = allMembers.filter(
+    (m) => m.gender !== gender && m.id !== initialMember?.id
+  );
 
-  const handleAddEvent = (newEvent: FamilyEvent) => {
-    setEvents((prev) => [...prev, newEvent]);
-  };
+  const selectedFather = fatherId ? memberMap.get(fatherId) : null;
+  const isAddingChild = presetRelation?.type === 'child' || Boolean(fatherId);
 
-  const handleResetToDefault = () => {
-    setMembers(initialFamilyMembers);
-    setDocuments(initialFamilyDocuments);
-    setEvents(initialFamilyEvents);
-    setSettings(initialFamilySettings);
-    setSelectedMember(null);
-  };
-
-  const handleClearAll = () => {
-    setMembers([
-      {
-        id: 'm-root-1',
-        firstName: 'الجد المؤسس',
-        familyName: settings.familyName,
-        gender: 'male',
-        isDeceased: false,
-        generation: 1,
-        branch: 'الفرع الرئيسي',
-        spouseIds: [],
-      },
-    ]);
-    setSelectedMember(null);
-  };
-
-  const totalGenerations = Array.from(new Set(members.map((m) => m.generation))).length;
-  const totalBranches = Array.from(new Set(members.map((m) => m.branch).filter(Boolean))).length;
+  // Suggested Full Arabic Name preview
+  const previewFullName = `${firstName || 'الاسم الأول'} ${
+    gender === 'female' ? 'بنت' : 'بن'
+  } ${fatherName || '...'} ${grandFatherName ? `بن ${grandFatherName}` : ''} ${
+    familyName || ''
+  }`;
 
   return (
-    <div className="min-h-screen bg-[#FBF9F5] text-stone-800 flex flex-col font-sans">
-      {/* Top Navbar */}
-      <Navbar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        onOpenAddMember={() => {
-          setEditingMember(null);
-          setPresetRelation(null);
-          setIsAddEditOpen(true);
-        }}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
-        familyTitle={settings.familyTitleAr}
-        totalMembersCount={members.length}
-      />
-
-      {/* Hero Marquee Bar (Visible above views or as context) */}
-      <div className="no-print bg-stone-900 text-stone-100 border-b border-stone-800 py-3 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <img
-              src={settings.crestUrl}
-              alt="Crest"
-              referrerPolicy="no-referrer"
-              className="w-8 h-8 rounded-full border border-amber-500/40 object-cover shrink-0"
-            />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] shadow-2xl border border-stone-200 flex flex-col text-right overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Header */}
+        <div className="px-6 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <User className="w-5 h-5 text-amber-800" />
             <div>
-              <span className="font-bold text-amber-200 text-sm font-amiri block">
-                {settings.familyName}
+              <h3 className="font-bold text-lg font-amiri text-stone-900 leading-tight">
+                {initialMember
+                  ? 'تعديل بيانات فرد العائلة'
+                  : presetRelation?.type === 'child' && selectedFather
+                  ? `إضافة ${gender === 'female' ? 'ابنة' : 'ابن'} لـ: ${selectedFather.firstName} ${selectedFather.fatherName || ''}`
+                  : 'إضافة فرد جديد إلى شجرة العائلة'}
+              </h3>
+              {isAddingChild && fatherName && (
+                <p className="text-[11px] text-emerald-800 font-medium flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline" />
+                  <span>توليد وتوارث النسب يتم تلقائياً من الأب المسجل بالشجرة</span>
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+          {/* Automatic Lineage Preview Banner */}
+          <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div>
+              <span className="text-[11px] font-bold text-amber-900 block flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                <span>الاسم الكامل المقترح في الشجرة:</span>
               </span>
-              <span className="text-stone-400 text-[11px] block">
-                {settings.tagline}
+              <p className="font-amiri text-base font-bold text-stone-900 mt-0.5">
+                {previewFullName}
+              </p>
+            </div>
+
+            <div className="text-left text-xs text-stone-500 font-mono tabular-nums shrink-0">
+              <span className="bg-white/80 px-2 py-1 rounded border border-amber-200 block text-center">
+                الجيل {generation} · {branch}
               </span>
             </div>
           </div>
 
-          {/* Quick Metrics Bar with tabular numbers */}
-          <div className="flex items-center gap-4 text-stone-300 font-mono tabular-nums text-[11px]">
-            <span>{members.length} فرد موثق</span>
-            <span className="text-stone-700" aria-hidden="true">·</span>
-            <span>{totalGenerations} أجيال</span>
-            <span className="text-stone-700" aria-hidden="true">·</span>
-            <span>{totalBranches} فروع</span>
-            <span className="text-stone-700" aria-hidden="true">·</span>
-            <span className="text-emerald-400 font-sans font-medium">بدون رسوم واشتراكات</span>
-          </div>
-        </div>
-      </div>
+          {/* Primary Input: First Name & Gender (This is the main field the user inputs!) */}
+          <div className="bg-stone-50/70 p-4 rounded-xl border border-stone-200">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              {/* First Name Input */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-stone-900 mb-1.5">
+                  الاسم الأول {isAddingChild ? `(${gender === 'female' ? 'الابنة' : 'الابن'})` : ''} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  ref={firstNameInputRef}
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="اكتب الاسم فقط (مثال: عبد العزيز، سارة، فيصل...)"
+                  className="w-full text-sm font-semibold px-3.5 py-2.5 bg-white border-2 border-amber-700/60 rounded-lg focus:outline-none focus:border-amber-800 shadow-2xs text-stone-900"
+                />
+              </div>
 
-      {/* Main Tab View Content */}
-      <main className="flex-1 flex flex-col">
-        {currentTab === 'tree' && (
-          <FamilyTreeCanvas
-            members={members}
-            onSelectMember={(m) => setSelectedMember(m)}
-            onAddRelative={handleOpenAddRelative}
-            selectedMemberId={selectedMember?.id}
-          />
-        )}
+              {/* Gender selector */}
+              <div>
+                <label className="block text-xs font-bold text-stone-800 mb-2">الجنس</label>
+                <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-stone-200">
+                  <label className="flex items-center gap-1.5 text-xs text-stone-800 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name="gender"
+                      checked={gender === 'male'}
+                      onChange={() => setGender('male')}
+                      className="accent-emerald-700 w-4 h-4 cursor-pointer"
+                    />
+                    <span>ذكر (ابن)</span>
+                  </label>
 
-        {currentTab === 'directory' && (
-          <DirectoryView
-            members={members}
-            onSelectMember={(m) => setSelectedMember(m)}
-            onOpenAddMember={() => {
-              setEditingMember(null);
-              setPresetRelation(null);
-              setIsAddEditOpen(true);
-            }}
-          />
-        )}
-
-        {currentTab === 'archive' && (
-          <MediaArchiveView
-            documents={documents}
-            members={members}
-            onAddDocument={handleAddDocument}
-            onSelectMember={(m) => setSelectedMember(m)}
-            activeDocModal={activeDocModal}
-            setActiveDocModal={setActiveDocModal}
-          />
-        )}
-
-        {currentTab === 'timeline' && (
-          <TimelineView events={events} onAddEvent={handleAddEvent} />
-        )}
-
-        {currentTab === 'statistics' && <StatisticsView members={members} />}
-      </main>
-
-      {/* Member Profile Drawer */}
-      <MemberDrawer
-        member={selectedMember}
-        onClose={() => setSelectedMember(null)}
-        onEdit={handleEditMemberFromDrawer}
-        onDelete={handleDeleteMember}
-        onSelectMember={(m) => setSelectedMember(m)}
-        onAddRelative={handleOpenAddRelative}
-        allMembers={members}
-        documents={documents}
-        onOpenDocument={(doc) => setActiveDocModal(doc)}
-      />
-
-      {/* Add / Edit Member Modal */}
-      <AddEditMemberModal
-        isOpen={isAddEditOpen}
-        onClose={() => {
-          setIsAddEditOpen(false);
-          setEditingMember(null);
-          setPresetRelation(null);
-        }}
-        onSave={handleSaveMember}
-        initialMember={editingMember}
-        allMembers={members}
-        presetRelation={presetRelation}
-      />
-
-      {/* Data Management & GEDCOM Modal */}
-      <DataManagementModal
-        isOpen={isDataModalOpen}
-        onClose={() => setIsDataModalOpen(false)}
-        members={members}
-        documents={documents}
-        events={events}
-        settings={settings}
-        onUpdateSettings={setSettings}
-        onImportData={(newMembers) => setMembers(newMembers)}
-        onResetToDefault={handleResetToDefault}
-        onClearAll={handleClearAll}
-      />
-
-      {/* Printable Report View (Visible only when printing) */}
-      <div className="hidden print:block print-area p-8 text-black bg-white">
-        <div className="text-center border-b-2 border-stone-800 pb-4 mb-6">
-          <h1 className="text-3xl font-bold font-amiri">{settings.familyTitleAr}</h1>
-          <p className="text-sm mt-1">{settings.tagline}</p>
-          <p className="text-xs text-stone-600 mt-1">
-            تاريخ الطباعة: {new Date().toLocaleDateString('ar-SA')} · إجمالي الأفراد: {members.length}
-          </p>
-        </div>
-
-        <h2 className="text-xl font-bold font-amiri mb-3">سجل نسب الأفراد:</h2>
-        <div className="grid grid-cols-2 gap-4 text-xs">
-          {members.map((m) => (
-            <div key={m.id} className="border border-stone-300 p-2 rounded">
-              <strong className="block text-sm">
-                {m.firstName} {m.fatherName || ''} {m.grandFatherName || ''} {m.familyName || ''}
-              </strong>
-              <span>
-                الجيل: {m.generation} · الميلاد: {m.birthYear || 'غير محدد'} · الفرع: {m.branch || '—'}
-              </span>
-              {m.profession && <p>المهنة: {m.profession}</p>}
+                  <label className="flex items-center gap-1.5 text-xs text-stone-800 cursor-pointer font-medium mr-2">
+                    <input
+                      type="radio"
+                      name="gender"
+                      checked={gender === 'female'}
+                      onChange={() => setGender('female')}
+                      className="accent-rose-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>أنثى (ابنة)</span>
+                  </label>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+
+          {/* Inherited Ancestor Names (Father, Grandfather, Family) */}
+          <div className="bg-white p-4 rounded-xl border border-stone-200 flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-800" />
+                <h4 className="text-xs font-bold text-stone-900">
+                  بيانات النسب والآباء
+                </h4>
+                {isAncestryLocked ? (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>مربوط تلقائياً من الأب بالشجرة</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <Unlock className="w-2.5 h-2.5" />
+                    <span>تعديل يدوي</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Unlock toggle if user wants manual override */}
+              <button
+                type="button"
+                onClick={() => setIsAncestryLocked(!isAncestryLocked)}
+                className="text-[11px] text-stone-500 hover:text-amber-800 flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                {isAncestryLocked ? (
+                  <>
+                    <Unlock className="w-3 h-3" />
+                    <span>تعديل الأسماء يدوياً</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3 h-3" />
+                    <span>إعادة القفل التلقائي</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Parent Selection Dropdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1">
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  الوالد (الأب في الشجرة)
+                </label>
+                <select
+                  value={fatherId}
+                  onChange={handleFatherChange}
+                  className="w-full text-xs px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-700 text-stone-800"
+                >
+                  <option value="">-- بدون أب مسجل في الشجرة --</option>
+                  {maleMembers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.firstName} {m.fatherName || ''} {m.grandFatherName || ''} (الجيل {m.generation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  الوالدة (الأم في الشجرة)
+                </label>
+                <select
+                  value={motherId}
+                  onChange={(e) => setMotherId(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-700 text-stone-800"
+                >
+                  <option value="">-- غير محدد --</option>
+                  {femaleMembers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.firstName} {m.fatherName || ''} {m.familyName || ''} (الجيل {m.generation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Father Name, Grandfather Name, Family Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  اسم الأب
+                </label>
+                <input
+                  type="text"
+                  disabled={isAncestryLocked}
+                  value={fatherName}
+                  onChange={(e) => setFatherName(e.target.value)}
+                  placeholder="اسم الأب"
+                  className={`w-full text-xs px-3 py-2 border rounded-lg focus:outline-none focus:border-amber-700 ${
+                    isAncestryLocked
+                      ? 'bg-stone-100/80 text-stone-700 border-stone-200 cursor-not-allowed'
+                      : 'bg-white border-stone-300'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  اسم الجد
+                </label>
+                <input
+                  type="text"
+                  disabled={isAncestryLocked}
+                  value={grandFatherName}
+                  onChange={(e) => setGrandFatherName(e.target.value)}
+                  placeholder="اسم الجد"
+                  className={`w-full text-xs px-3 py-2 border rounded-lg focus:outline-none focus:border-amber-700 ${
+                    isAncestryLocked
+                      ? 'bg-stone-100/80 text-stone-700 border-stone-200 cursor-not-allowed'
+                      : 'bg-white border-stone-300'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  اللقب / العائلة
+                </label>
+                <input
+                  type="text"
+                  disabled={isAncestryLocked}
+                  value={familyName}
+                  onChange={(e) => setFamilyName(e.target.value)}
+                  placeholder="الصائبي"
+                  className={`w-full text-xs px-3 py-2 border rounded-lg focus:outline-none focus:border-amber-700 ${
+                    isAncestryLocked
+                      ? 'bg-stone-100/80 text-stone-700 border-stone-200 cursor-not-allowed'
+                      : 'bg-white border-stone-300'
+                  }`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Birth & Vital Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-stone-50/60 p-3.5 rounded-xl border border-stone-200">
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                سنة الميلاد (اختياري)
+              </label>
+              <input
+                type="text"
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value)}
+                placeholder="مثال: 2012"
+                className="w-full text-xs px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-700 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                مكان الميلاد / الإقامة
+              </label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="مثال: الرياض"
+                className="w-full text-xs px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                الحالة
+              </label>
+              <div className="pt-2">
+                <label className="flex items-center gap-1.5 text-xs text-stone-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isDeceased}
+                    onChange={(e) => setIsDeceased(e.target.checked)}
+                    className="accent-stone-800"
+                  />
+                  <span>متوفى (رحمه الله)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional details expandable (Profession, Kunya, Bio, Avatar) */}
+          <details className="group bg-white p-3.5 rounded-xl border border-stone-200">
+            <summary className="text-xs font-bold text-stone-700 cursor-pointer list-none flex items-center justify-between">
+              <span>تفاصيل إضافية (المهنة، الكنية، الصورة، السيرة)</span>
+              <span className="text-stone-400 text-[11px] group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+
+            <div className="pt-4 flex flex-col gap-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">الكنية</label>
+                  <input
+                    type="text"
+                    value={kunya}
+                    onChange={(e) => setKunya(e.target.value)}
+                    placeholder="مثال: أبو صالح / أم خالد"
+                    className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">المهنة / التخصص</label>
+                  <input
+                    type="text"
+                    value={profession}
+                    onChange={(e) => setProfession(e.target.value)}
+                    placeholder="طالب / مهندس / طبيب"
+                    className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Avatar Upload */}
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">الصورة الشخصية</label>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg border border-stone-300 flex items-center gap-1.5 shadow-2xs">
+                    <Upload className="w-3.5 h-3.5 text-amber-800" />
+                    <span>رفع صورة</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="أو رابط صورة مباشر..."
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+                  />
+                </div>
+                {avatarUrl && (
+                  <img
+                    src={avatarUrl}
+                    alt="Preview"
+                    referrerPolicy="no-referrer"
+                    className="w-12 h-12 rounded-full mt-2 object-cover border border-stone-300"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">السيرة والنبذة</label>
+                <textarea
+                  rows={2}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="ملاحظات وسيرة الفرد..."
+                  className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg resize-none"
+                />
+              </div>
+            </div>
+          </details>
+
+          {/* Submit Actions */}
+          <div className="flex items-center justify-between pt-4 border-t border-stone-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-medium text-stone-600 hover:text-stone-900 transition-colors"
+            >
+              إلغاء
+            </button>
+
+            <button
+              type="submit"
+              className="px-6 py-2.5 text-xs font-bold text-white bg-amber-800 hover:bg-amber-900 rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>{initialMember ? 'حفظ التعديلات' : 'إضافة الفرد للشجرة مباشرة'}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
-}
+};
