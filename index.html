@@ -1,498 +1,385 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>شجرة العائلة</title>
-
-<style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:tahoma;
-}
-
-body{
-background:#0d1117;
-color:#fff;
-}
-
-header{
-background:#161b22;
-padding:20px;
-text-align:center;
-border-bottom:1px solid #30363d;
-}
-
-.container{
-max-width:1400px;
-margin:auto;
-padding:20px;
-}
-
-.card{
-background:#161b22;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-border:1px solid #30363d;
-}
-
-h2{
-margin-bottom:10px;
-}
-
-input,select{
-width:100%;
-padding:12px;
-margin-top:8px;
-margin-bottom:10px;
-background:#21262d;
-color:white;
-border:none;
-border-radius:8px;
-}
-
-button{
-padding:12px 20px;
-border:none;
-border-radius:8px;
-cursor:pointer;
-margin-top:5px;
-}
-
-.add{
-background:#238636;
-color:white;
-}
-
-.delete{
-background:#da3633;
-color:white;
-}
-
-.tree{
-overflow:auto;
-white-space:nowrap;
-padding:20px;
-}
-
-.node{
-display:inline-block;
-background:#21262d;
-border:1px solid #3d444d;
-padding:12px;
-border-radius:10px;
-min-width:160px;
-text-align:center;
-cursor:pointer;
-margin:10px;
-}
-
-.node:hover{
-border-color:#58a6ff;
-}
-
-.children{
-margin-right:40px;
-border-right:2px solid #444;
-padding-right:20px;
-margin-top:10px;
-}
-
-.modal{
-position:fixed;
-top:0;
-left:0;
-right:0;
-bottom:0;
-background:rgba(0,0,0,.8);
-display:none;
-align-items:center;
-justify-content:center;
-}
-
-.modal-content{
-background:#161b22;
-padding:20px;
-border-radius:10px;
-width:350px;
-}
-
-.stats{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-}
-
-.stat{
-flex:1;
-min-width:200px;
-background:#21262d;
-padding:15px;
-border-radius:10px;
-text-align:center;
-}
-
-.small{
-color:#8b949e;
-font-size:13px;
-}
-</style>
-</head>
-
-<body>
-
-<header>
-<h1>🌳 شجرة العائلة</h1>
-</header>
-
-<div class="container">
-
-<div class="card">
-
-<h2>إضافة شخص</h2>
-
-<input id="name" placeholder="اسم الشخص">
-
-<select id="father">
-<option value="">بدون أب (مؤسس العائلة)</option>
-</select>
-
-<button class="add" onclick="addPerson()">
-إضافة شخص
-</button>
-
-</div>
-
-<div class="card">
-
-<h2>البحث</h2>
-
-<input
-id="search"
-placeholder="ابحث عن شخص"
-onkeyup="render()">
-
-</div>
-
-<div class="card">
-<div class="stats">
-
-<div class="stat">
-عدد الأفراد
-<h2 id="count">0</h2>
-</div>
-
-<div class="stat">
-عدد المؤسسين
-<h2 id="roots">0</h2>
-</div>
-
-</div>
-</div>
-
-<div class="card">
-
-<h2>الشجرة</h2>
-
-<div id="tree" class="tree"></div>
-
-</div>
-
-</div>
-
-<div class="modal" id="modal">
-<div class="modal-content">
-
-<h2 id="personName"></h2>
-
-<p id="personFather"></p>
-
-<br>
-
-<button
-class="delete"
-onclick="deleteSelected()">
-حذف الشخص
-</button>
-
-</div>
-</div>
-
-<script>
-
-let selectedId=null;
-
-let people =
-JSON.parse(
-localStorage.getItem("familyTree")
-) || [
-
-{
-id:1,
-name:"الجد",
-father:null
-},
-
-{
-id:2,
-name:"الابن الأول",
-father:1
-},
-
-{
-id:3,
-name:"الابن الثاني",
-father:1
-}
-
-];
-
-function save(){
-
-localStorage.setItem(
-"familyTree",
-JSON.stringify(people)
-);
-
-}
-
-function addPerson(){
-
-const name=
-document.getElementById("name").value.trim();
-
-if(!name){
-alert("أدخل الاسم");
-return;
-}
-
-const father=
-document.getElementById("father").value;
-
-people.push({
-
-id:Date.now(),
-
-name:name,
-
-father: father || null
-
-});
-
-document.getElementById("name").value="";
-
-save();
-
-render();
-
-}
-
-function buildTree(parentId){
-
-const children=
-people.filter(
-p=>String(p.father)===String(parentId)
-);
-
-if(children.length===0)
-return "";
-
-let html=
-'<div class="children">';
-
-children.forEach(child=>{
-
-html+=`
-
-<div>
-
-<div
-class="node"
-onclick="showPerson(${child.id})">
-
-${child.name}
-
-</div>
-
-${buildTree(child.id)}
-
-</div>
-
-`;
-
-});
-
-html+='</div>';
-
-return html;
-
-}
-
-function showPerson(id){
-
-selectedId=id;
-
-const person=
-people.find(
-x=>x.id===id
-);
-
-document.getElementById(
-"personName"
-).innerText=person.name;
-
-let fatherName=
-"غير معروف";
-
-if(person.father){
-
-let f=
-people.find(
-x=>x.id==person.father
-);
-
-if(f)
-fatherName=f.name;
-
-}
-
-document.getElementById(
-"personFather"
-).innerText=
-"الأب: "+fatherName;
-
-document.getElementById(
-"modal"
-).style.display="flex";
-
-}
-
-document.getElementById(
-"modal"
-).onclick=function(e){
-
-if(e.target.id==="modal")
-this.style.display="none";
-
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Navbar } from './components/Navbar';
+import { FamilyTreeCanvas } from './components/FamilyTreeCanvas';
+import { MemberDrawer } from './components/MemberDrawer';
+import { AddEditMemberModal } from './components/AddEditMemberModal';
+import { DirectoryView } from './components/DirectoryView';
+import { MediaArchiveView } from './components/MediaArchiveView';
+import { TimelineView } from './components/TimelineView';
+import { StatisticsView } from './components/StatisticsView';
+import { DataManagementModal } from './components/DataManagementModal';
+import { 
+  FamilyMember, 
+  FamilyDocument, 
+  FamilyEvent, 
+  FamilyTreeSettings 
+} from './types/family';
+import { 
+  initialFamilySettings, 
+  initialFamilyMembers, 
+  initialFamilyDocuments, 
+  initialFamilyEvents 
+} from './data/initialFamilyData';
+import { 
+  ShieldCheck, 
+  Compass, 
+  Users, 
+  Layers, 
+  Download, 
+  Plus, 
+  Printer,
+  ChevronLeft
+} from 'lucide-react';
+
+const STORAGE_KEYS = {
+  MEMBERS: 'al_saibi_family_members_v1',
+  DOCUMENTS: 'al_saibi_family_documents_v1',
+  EVENTS: 'al_saibi_family_events_v1',
+  SETTINGS: 'al_saibi_family_settings_v1',
 };
 
-function deleteSelected(){
+export default function App() {
+  // Load state from localStorage or initial defaults
+  const [members, setMembers] = useState<FamilyMember[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.MEMBERS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialFamilyMembers;
+  });
 
-if(!selectedId) return;
+  const [documents, setDocuments] = useState<FamilyDocument[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialFamilyDocuments;
+  });
 
-people=
-people.filter(
-x=>x.id!==selectedId
-);
+  const [events, setEvents] = useState<FamilyEvent[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.EVENTS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialFamilyEvents;
+  });
 
-save();
+  const [settings, setSettings] = useState<FamilyTreeSettings>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialFamilySettings;
+  });
 
-document.getElementById(
-"modal"
-).style.display="none";
+  // UI state
+  const [currentTab, setCurrentTab] = useState<'tree' | 'directory' | 'archive' | 'timeline' | 'statistics'>('tree');
+  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const [isAddEditOpen, setIsAddEditOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
+  const [presetRelation, setPresetRelation] = useState<{
+    type: 'child' | 'spouse' | 'parent';
+    targetMember: FamilyMember;
+  } | null>(null);
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [activeDocModal, setActiveDocModal] = useState<FamilyDocument | null>(null);
 
-render();
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [members]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [documents]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [events]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [settings]);
+
+  // Member CRUD Handlers
+  const handleSaveMember = (memberData: FamilyMember) => {
+    setMembers((prev) => {
+      const existingIdx = prev.findIndex((m) => m.id === memberData.id);
+      if (existingIdx >= 0) {
+        const copy = [...prev];
+        copy[existingIdx] = memberData;
+        return copy;
+      } else {
+        // Add new
+        const updated = [...prev, memberData];
+        // If spouse was selected, reciprocate link
+        if (memberData.spouseIds && memberData.spouseIds.length > 0) {
+          memberData.spouseIds.forEach((spId) => {
+            const spIdx = updated.findIndex((m) => m.id === spId);
+            if (spIdx >= 0 && !updated[spIdx].spouseIds.includes(memberData.id)) {
+              updated[spIdx] = {
+                ...updated[spIdx],
+                spouseIds: [...updated[spIdx].spouseIds, memberData.id],
+              };
+            }
+          });
+        }
+        return updated;
+      }
+    });
+
+    if (selectedMember && selectedMember.id === memberData.id) {
+      setSelectedMember(memberData);
+    }
+  };
+
+  const handleDeleteMember = (memberId: string) => {
+    setMembers((prev) => {
+      // Remove member and unlink from parents / spouses
+      return prev
+        .filter((m) => m.id !== memberId)
+        .map((m) => ({
+          ...m,
+          fatherId: m.fatherId === memberId ? null : m.fatherId,
+          motherId: m.motherId === memberId ? null : m.motherId,
+          spouseIds: m.spouseIds.filter((id) => id !== memberId),
+        }));
+    });
+    setSelectedMember(null);
+  };
+
+  const handleOpenAddRelative = (type: 'child' | 'spouse' | 'parent', targetMember: FamilyMember) => {
+    setEditingMember(null);
+    setPresetRelation({ type, targetMember });
+    setIsAddEditOpen(true);
+  };
+
+  const handleEditMemberFromDrawer = (member: FamilyMember) => {
+    setEditingMember(member);
+    setPresetRelation(null);
+    setIsAddEditOpen(true);
+  };
+
+  const handleAddDocument = (newDoc: FamilyDocument) => {
+    setDocuments((prev) => [newDoc, ...prev]);
+  };
+
+  const handleAddEvent = (newEvent: FamilyEvent) => {
+    setEvents((prev) => [...prev, newEvent]);
+  };
+
+  const handleResetToDefault = () => {
+    setMembers(initialFamilyMembers);
+    setDocuments(initialFamilyDocuments);
+    setEvents(initialFamilyEvents);
+    setSettings(initialFamilySettings);
+    setSelectedMember(null);
+  };
+
+  const handleClearAll = () => {
+    setMembers([
+      {
+        id: 'm-root-1',
+        firstName: 'الجد المؤسس',
+        familyName: settings.familyName,
+        gender: 'male',
+        isDeceased: false,
+        generation: 1,
+        branch: 'الفرع الرئيسي',
+        spouseIds: [],
+      },
+    ]);
+    setSelectedMember(null);
+  };
+
+  const totalGenerations = Array.from(new Set(members.map((m) => m.generation))).length;
+  const totalBranches = Array.from(new Set(members.map((m) => m.branch).filter(Boolean))).length;
+
+  return (
+    <div className="min-h-screen bg-[#FBF9F5] text-stone-800 flex flex-col font-sans">
+      {/* Top Navbar */}
+      <Navbar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        onOpenAddMember={() => {
+          setEditingMember(null);
+          setPresetRelation(null);
+          setIsAddEditOpen(true);
+        }}
+        onOpenDataModal={() => setIsDataModalOpen(true)}
+        familyTitle={settings.familyTitleAr}
+        totalMembersCount={members.length}
+      />
+
+      {/* Hero Marquee Bar (Visible above views or as context) */}
+      <div className="no-print bg-stone-900 text-stone-100 border-b border-stone-800 py-3 px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <img
+              src={settings.crestUrl}
+              alt="Crest"
+              referrerPolicy="no-referrer"
+              className="w-8 h-8 rounded-full border border-amber-500/40 object-cover shrink-0"
+            />
+            <div>
+              <span className="font-bold text-amber-200 text-sm font-amiri block">
+                {settings.familyName}
+              </span>
+              <span className="text-stone-400 text-[11px] block">
+                {settings.tagline}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar with tabular numbers */}
+          <div className="flex items-center gap-4 text-stone-300 font-mono tabular-nums text-[11px]">
+            <span>{members.length} فرد موثق</span>
+            <span className="text-stone-700" aria-hidden="true">·</span>
+            <span>{totalGenerations} أجيال</span>
+            <span className="text-stone-700" aria-hidden="true">·</span>
+            <span>{totalBranches} فروع</span>
+            <span className="text-stone-700" aria-hidden="true">·</span>
+            <span className="text-emerald-400 font-sans font-medium">بدون رسوم واشتراكات</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Tab View Content */}
+      <main className="flex-1 flex flex-col">
+        {currentTab === 'tree' && (
+          <FamilyTreeCanvas
+            members={members}
+            onSelectMember={(m) => setSelectedMember(m)}
+            onAddRelative={handleOpenAddRelative}
+            selectedMemberId={selectedMember?.id}
+          />
+        )}
+
+        {currentTab === 'directory' && (
+          <DirectoryView
+            members={members}
+            onSelectMember={(m) => setSelectedMember(m)}
+            onOpenAddMember={() => {
+              setEditingMember(null);
+              setPresetRelation(null);
+              setIsAddEditOpen(true);
+            }}
+          />
+        )}
+
+        {currentTab === 'archive' && (
+          <MediaArchiveView
+            documents={documents}
+            members={members}
+            onAddDocument={handleAddDocument}
+            onSelectMember={(m) => setSelectedMember(m)}
+            activeDocModal={activeDocModal}
+            setActiveDocModal={setActiveDocModal}
+          />
+        )}
+
+        {currentTab === 'timeline' && (
+          <TimelineView events={events} onAddEvent={handleAddEvent} />
+        )}
+
+        {currentTab === 'statistics' && <StatisticsView members={members} />}
+      </main>
+
+      {/* Member Profile Drawer */}
+      <MemberDrawer
+        member={selectedMember}
+        onClose={() => setSelectedMember(null)}
+        onEdit={handleEditMemberFromDrawer}
+        onDelete={handleDeleteMember}
+        onSelectMember={(m) => setSelectedMember(m)}
+        onAddRelative={handleOpenAddRelative}
+        allMembers={members}
+        documents={documents}
+        onOpenDocument={(doc) => setActiveDocModal(doc)}
+      />
+
+      {/* Add / Edit Member Modal */}
+      <AddEditMemberModal
+        isOpen={isAddEditOpen}
+        onClose={() => {
+          setIsAddEditOpen(false);
+          setEditingMember(null);
+          setPresetRelation(null);
+        }}
+        onSave={handleSaveMember}
+        initialMember={editingMember}
+        allMembers={members}
+        presetRelation={presetRelation}
+      />
+
+      {/* Data Management & GEDCOM Modal */}
+      <DataManagementModal
+        isOpen={isDataModalOpen}
+        onClose={() => setIsDataModalOpen(false)}
+        members={members}
+        documents={documents}
+        events={events}
+        settings={settings}
+        onUpdateSettings={setSettings}
+        onImportData={(newMembers) => setMembers(newMembers)}
+        onResetToDefault={handleResetToDefault}
+        onClearAll={handleClearAll}
+      />
+
+      {/* Printable Report View (Visible only when printing) */}
+      <div className="hidden print:block print-area p-8 text-black bg-white">
+        <div className="text-center border-b-2 border-stone-800 pb-4 mb-6">
+          <h1 className="text-3xl font-bold font-amiri">{settings.familyTitleAr}</h1>
+          <p className="text-sm mt-1">{settings.tagline}</p>
+          <p className="text-xs text-stone-600 mt-1">
+            تاريخ الطباعة: {new Date().toLocaleDateString('ar-SA')} · إجمالي الأفراد: {members.length}
+          </p>
+        </div>
+
+        <h2 className="text-xl font-bold font-amiri mb-3">سجل نسب الأفراد:</h2>
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          {members.map((m) => (
+            <div key={m.id} className="border border-stone-300 p-2 rounded">
+              <strong className="block text-sm">
+                {m.firstName} {m.fatherName || ''} {m.grandFatherName || ''} {m.familyName || ''}
+              </strong>
+              <span>
+                الجيل: {m.generation} · الميلاد: {m.birthYear || 'غير محدد'} · الفرع: {m.branch || '—'}
+              </span>
+              {m.profession && <p>المهنة: {m.profession}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
-
-function render(){
-
-const search=
-document.getElementById(
-"search"
-).value.toLowerCase();
-
-document.getElementById(
-"count"
-).innerText=
-people.length;
-
-document.getElementById(
-"roots"
-).innerText=
-people.filter(
-x=>!x.father
-).length;
-
-let fatherSelect=
-document.getElementById(
-"father"
-);
-
-fatherSelect.innerHTML=
-'<option value="">بدون أب (مؤسس العائلة)</option>';
-
-people.forEach(p=>{
-
-fatherSelect.innerHTML+=`
-
-<option value="${p.id}">
-${p.name}
-</option>
-
-`;
-
-});
-
-let roots=
-people.filter(
-x=>!x.father
-);
-
-let html="";
-
-roots.forEach(root=>{
-
-if(
-search &&
-!root.name.toLowerCase()
-.includes(search)
-){
-
-let match=
-people.some(
-p=>
-p.name.toLowerCase()
-.includes(search)
-);
-
-if(!match) return;
-}
-
-html+=`
-
-<div>
-
-<div
-class="node"
-onclick="showPerson(${root.id})">
-
-${root.name}
-
-</div>
-
-${buildTree(root.id)}
-
-</div>
-
-`;
-
-});
-
-document.getElementById(
-"tree"
-).innerHTML=html;
-
-save();
-
-}
-
-render();
-
-</script>
-
-</body>
-</html>
